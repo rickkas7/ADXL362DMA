@@ -9,9 +9,10 @@
 // Data Sheet:
 // http://www.analog.com/media/en/technical-documentation/data-sheets/ADXL362.pdf
 
-#if PLATFORM_ID != 0
+#if PLATFORM_ID > 3
 static Mutex syncCallbackMutex;
 #else
+// On the core, there is no mutex support
 #define NO_MUTEX 1
 static bool syncCallbackDone;
 #endif
