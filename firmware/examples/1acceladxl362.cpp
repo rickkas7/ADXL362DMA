@@ -10,7 +10,12 @@
 SYSTEM_THREAD(ENABLED);
 
 // Number of 256 byte buffers to allocate. The more 3buffers, the longer network hiccup can be accomodated for.
+#if PLATFORM_ID > 3
 const size_t NUM_BUFFERS = 128;
+#else
+// Core doesn't have enough RAM for 128 buffers
+const size_t NUM_BUFFERS = 64;
+#endif
 
 // Finite state machine states
 enum State { STATE_CONNECT, STATE_CHECK_BUFFER, STATE_SEND, STATE_RETRY_WAIT };
