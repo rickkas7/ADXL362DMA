@@ -9,7 +9,12 @@
 // Data Sheet:
 // http://www.analog.com/media/en/technical-documentation/data-sheets/ADXL362.pdf
 
+#if PLATFORM_ID != 0
 static Mutex syncCallbackMutex;
+#else
+#define NO_MUTEX 1
+static bool syncCallbackDone;
+#endif
 
 static ADXL362Data *readFifoData;
 static ADXL362DMA *readFifoObject;
@@ -338,6 +343,7 @@ void ADXL362DMA::endTransaction() {
 }
 
 void ADXL362DMA::syncTransaction(void *req, void *resp, size_t len) {
+#ifndef NO_MUTEX
 	syncCallbackMutex.lock();
 
 	beginTransaction();
@@ -348,11 +354,26 @@ void ADXL362DMA::syncTransaction(void *req, void *resp, size_t len) {
 	endTransaction();
 
 	syncCallbackMutex.unlock();
+#else
+	syncCallbackDone = false;
+	beginTransaction();
+
+	spi.transfer(req, resp, len, syncCallback);
+
+	while(!syncCallbackDone) {
+	}
+
+	endTransaction();
+#endif
 }
 
 // [static]
 void ADXL362DMA::syncCallback(void) {
+#ifndef NO_MUTEX
 	syncCallbackMutex.unlock();
+#else
+	syncCallbackDone = true;
+#endif
 }
 
 ADXL362Data::ADXL362Data() {
