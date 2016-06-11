@@ -16,15 +16,15 @@
 
 class ADXL362Data; // forward declaration
 
-class ADXL362 {
+class ADXL362DMA {
 public:
 	/**
 	 * Initialize the ADXL362 handler object. Usually created as  global variable like this:
 	 *
 	 * ADXL362 accel(SPI, A2);
 	 */
-	ADXL362(SPIClass &spi, int ss = A2);
-	virtual ~ADXL362();
+	ADXL362DMA(SPIClass &spi, int ss = A2);
+	virtual ~ADXL362DMA();
 
 	/**
 	 * Issue a soft reset call. It may make a little while for the sensor to respond after

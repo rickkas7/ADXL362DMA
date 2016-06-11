@@ -1,6 +1,6 @@
 #include "Particle.h"
 
-#include "ADXL362DMA/ADXL362.h"
+#include "ADXL362DMA/ADXL362DMA.h"
 
 // Library for the ADXL362 that uses SPI DMI for efficient data transfers
 // https://github.com/rickkas7/ADXL362DMA
@@ -12,11 +12,11 @@
 static Mutex syncCallbackMutex;
 
 static ADXL362Data *readFifoData;
-static ADXL362 *readFifoObject;
+static ADXL362DMA *readFifoObject;
 
 // These methods are described in greater detail in the .h file
 
-ADXL362::ADXL362(SPIClass &spi, int ss) : spi(spi), ss(ss) {
+ADXL362DMA::ADXL362DMA(SPIClass &spi, int ss) : spi(spi), ss(ss) {
 	spi.begin(ss);
 
 	// This initialization possibly should go in beginTransaction() for compatibility with SPI
@@ -28,16 +28,16 @@ ADXL362::ADXL362(SPIClass &spi, int ss) : spi(spi), ss(ss) {
 	spi.setDataMode(SPI_MODE0); // CPHA = 0, CPOL = 0 : MODE = 0
 }
 
-ADXL362::~ADXL362() {
+ADXL362DMA::~ADXL362DMA() {
 }
 
-void ADXL362::softReset() {
+void ADXL362DMA::softReset() {
 
 	// Serial.println("softReset");
 	writeRegister8(REG_SOFT_RESET, 'R');
 }
 
-void ADXL362::setMeasureMode(bool enabled) {
+void ADXL362DMA::setMeasureMode(bool enabled) {
 
 	uint8_t value = readRegister8(REG_POWER_CTL);
 
@@ -53,7 +53,7 @@ void ADXL362::setMeasureMode(bool enabled) {
 
 }
 
-void ADXL362::readXYZT(int &x, int &y, int &z, int &t) {
+void ADXL362DMA::readXYZT(int &x, int &y, int &z, int &t) {
 	uint8_t req[10], resp[10];
 
 	req[0] = CMD_READ_REGISTER;
@@ -70,15 +70,15 @@ void ADXL362::readXYZT(int &x, int &y, int &z, int &t) {
 	t = resp[8] | (((int)resp[9]) << 8);
 }
 
-uint8_t ADXL362::readStatus() {
+uint8_t ADXL362DMA::readStatus() {
 	return readRegister8(REG_STATUS);
 }
 
-uint16_t ADXL362::readNumFifoEntries() {
+uint16_t ADXL362DMA::readNumFifoEntries() {
 	return readRegister16(REG_FIFO_ENTRIES_L);
 }
 
-void ADXL362::readFifoAsync(ADXL362Data *data) {
+void ADXL362DMA::readFifoAsync(ADXL362Data *data) {
 	if (busy) {
 		return;
 	}
@@ -107,34 +107,34 @@ void ADXL362::readFifoAsync(ADXL362Data *data) {
 }
 
 // [static]
-void ADXL362::readFifoCallbackInternal(void) {
+void ADXL362DMA::readFifoCallbackInternal(void) {
 	readFifoObject->endTransaction();
 	readFifoData->state = ADXL362Data::STATE_READ_COMPLETE;
 }
 
-void ADXL362::writeActivityThreshold(uint16_t value) { // value is an 11-bit integer
+void ADXL362DMA::writeActivityThreshold(uint16_t value) { // value is an 11-bit integer
 	writeRegister16(REG_THRESH_ACT_L, value);
 }
 
-void ADXL362::writeActivityTime(uint8_t value) {
+void ADXL362DMA::writeActivityTime(uint8_t value) {
 	writeRegister8(REG_TIME_ACT, value);
 }
-void ADXL362::writeInactivityThreshold(uint16_t value) { // value is an 11-bit integer
+void ADXL362DMA::writeInactivityThreshold(uint16_t value) { // value is an 11-bit integer
 	writeRegister16(REG_THRESH_INACT_L, value);
 }
-void ADXL362::writeInactivityTime(uint16_t value) {
+void ADXL362DMA::writeInactivityTime(uint16_t value) {
 	writeRegister16(REG_TIME_INACT_L, value);
 }
 
-uint8_t ADXL362::readActivityControl(uint8_t value) {
+uint8_t ADXL362DMA::readActivityControl(uint8_t value) {
 	return readRegister8(REG_ACT_INACT_CTL);
 }
 
-void ADXL362::writeActivityControl(uint8_t value) {
+void ADXL362DMA::writeActivityControl(uint8_t value) {
 	writeRegister8(REG_ACT_INACT_CTL, value);
 }
 
-void ADXL362::writeActivityControl(uint8_t linkLoop, bool inactRef, bool inactEn, bool actRef, bool actEn) {
+void ADXL362DMA::writeActivityControl(uint8_t linkLoop, bool inactRef, bool inactEn, bool actRef, bool actEn) {
 	uint8_t value = 0;
 
 	value |= (linkLoop & 0x3) << 4;
@@ -155,20 +155,20 @@ void ADXL362::writeActivityControl(uint8_t linkLoop, bool inactRef, bool inactEn
 }
 
 
-uint8_t ADXL362::readFifoControl() {
+uint8_t ADXL362DMA::readFifoControl() {
 	return readRegister8(REG_FIFO_CONTROL);
 }
 
-void ADXL362::writeFifoControl(uint8_t value) {
+void ADXL362DMA::writeFifoControl(uint8_t value) {
 	writeRegister8(REG_FIFO_CONTROL, value);
 }
 
-void ADXL362::writeFifoSamples(uint8_t value) {
+void ADXL362DMA::writeFifoSamples(uint8_t value) {
 	writeRegister8(REG_FIFO_SAMPLES, value);
 }
 
 
-void ADXL362::writeFifoControlAndSamples(uint16_t samples, bool storeTemp, uint8_t fifoMode) {
+void ADXL362DMA::writeFifoControlAndSamples(uint16_t samples, bool storeTemp, uint8_t fifoMode) {
 	uint8_t value = 0;
 
 	this->storeTemp = storeTemp;
@@ -187,31 +187,31 @@ void ADXL362::writeFifoControlAndSamples(uint16_t samples, bool storeTemp, uint8
 }
 
 
-uint8_t ADXL362::readIntmap1() {
+uint8_t ADXL362DMA::readIntmap1() {
 	return readRegister8(REG_FIFO_INTMAP1);
 }
 
-void ADXL362::writeIntmap1(uint8_t value) {
+void ADXL362DMA::writeIntmap1(uint8_t value) {
 	writeRegister8(REG_FIFO_INTMAP1, value);
 }
 
-uint8_t ADXL362::readIntmap2() {
+uint8_t ADXL362DMA::readIntmap2() {
 	return readRegister8(REG_FIFO_INTMAP2);
 }
 
-void ADXL362::writeIntmap2(uint8_t value) {
+void ADXL362DMA::writeIntmap2(uint8_t value) {
 	writeRegister8(REG_FIFO_INTMAP2, value);
 }
 
-uint8_t ADXL362::readPowerCtl() {
+uint8_t ADXL362DMA::readPowerCtl() {
 	return readRegister8(REG_POWER_CTL);
 }
 
-void ADXL362::writePowerCtl(uint8_t value) {
+void ADXL362DMA::writePowerCtl(uint8_t value) {
 	writeRegister8(REG_POWER_CTL, value);
 }
 
-void ADXL362::writePowerCtl(bool extClock, uint8_t lowNoise, bool wakeup, bool autosleep, uint8_t measureMode) {
+void ADXL362DMA::writePowerCtl(bool extClock, uint8_t lowNoise, bool wakeup, bool autosleep, uint8_t measureMode) {
 	uint8_t temp = 0;
 
 	if (extClock) {
@@ -229,7 +229,7 @@ void ADXL362::writePowerCtl(bool extClock, uint8_t lowNoise, bool wakeup, bool a
 	writePowerCtl(temp);
 }
 
-void ADXL362::writeLowNoise(uint8_t value) {
+void ADXL362DMA::writeLowNoise(uint8_t value) {
 	uint8_t temp = readPowerCtl();
 
 	temp &= 0xc0;
@@ -238,7 +238,7 @@ void ADXL362::writeLowNoise(uint8_t value) {
 	writePowerCtl(temp);
 }
 
-void ADXL362::writeMeasureMode(uint8_t value) {
+void ADXL362DMA::writeMeasureMode(uint8_t value) {
 	uint8_t temp = readPowerCtl();
 
 	temp &= 0x3;
@@ -249,16 +249,16 @@ void ADXL362::writeMeasureMode(uint8_t value) {
 
 
 
-uint8_t ADXL362::readFilterControl() {
+uint8_t ADXL362DMA::readFilterControl() {
 	return readRegister8(REG_FILTER_CTL);
 }
 
-void ADXL362::writeFilterControl(uint8_t value) {
+void ADXL362DMA::writeFilterControl(uint8_t value) {
 	writeRegister8(REG_FILTER_CTL, value);
 }
 
 
-void ADXL362::writeFilterControl(uint8_t range, bool halfBW, bool extSample, uint8_t odr) {
+void ADXL362DMA::writeFilterControl(uint8_t range, bool halfBW, bool extSample, uint8_t odr) {
 	uint8_t value = 0;
 
 	value |= (range & 0x3) << 6;
@@ -275,7 +275,7 @@ void ADXL362::writeFilterControl(uint8_t range, bool halfBW, bool extSample, uin
 }
 
 
-uint8_t ADXL362::readRegister8(uint8_t addr) {
+uint8_t ADXL362DMA::readRegister8(uint8_t addr) {
 	uint8_t req[3], resp[3];
 
 	req[0] = CMD_READ_REGISTER;
@@ -287,7 +287,7 @@ uint8_t ADXL362::readRegister8(uint8_t addr) {
 	return resp[2];
 }
 
-uint16_t ADXL362::readRegister16(uint8_t addr) {
+uint16_t ADXL362DMA::readRegister16(uint8_t addr) {
 	uint8_t req[4], resp[4];
 
 	req[0] = CMD_READ_REGISTER;
@@ -300,7 +300,7 @@ uint16_t ADXL362::readRegister16(uint8_t addr) {
 }
 
 
-void ADXL362::writeRegister8(uint8_t addr, uint8_t value) {
+void ADXL362DMA::writeRegister8(uint8_t addr, uint8_t value) {
 	// Serial.printlnf("writeRegister addr=%02x value=%02x", addr, value);
 
 	uint8_t req[3], resp[3];
@@ -312,7 +312,7 @@ void ADXL362::writeRegister8(uint8_t addr, uint8_t value) {
 	syncTransaction(req, resp, sizeof(req));
 }
 
-void ADXL362::writeRegister16(uint8_t addr, uint16_t value) {
+void ADXL362DMA::writeRegister16(uint8_t addr, uint16_t value) {
 	// Serial.printlnf("writeRegister addr=%02x value=%04x", addr, value);
 
 	uint8_t req[4], resp[4];
@@ -326,18 +326,18 @@ void ADXL362::writeRegister16(uint8_t addr, uint16_t value) {
 }
 
 
-void ADXL362::beginTransaction() {
-	// See note in the constructor for ADXL362
+void ADXL362DMA::beginTransaction() {
+	// See note in the constructor for ADXL362DMA
 	busy = true;
 	digitalWrite(ss, LOW);
 }
 
-void ADXL362::endTransaction() {
+void ADXL362DMA::endTransaction() {
 	digitalWrite(ss, HIGH);
 	busy = false;
 }
 
-void ADXL362::syncTransaction(void *req, void *resp, size_t len) {
+void ADXL362DMA::syncTransaction(void *req, void *resp, size_t len) {
 	syncCallbackMutex.lock();
 
 	beginTransaction();
@@ -351,7 +351,7 @@ void ADXL362::syncTransaction(void *req, void *resp, size_t len) {
 }
 
 // [static]
-void ADXL362::syncCallback(void) {
+void ADXL362DMA::syncCallback(void) {
 	syncCallbackMutex.unlock();
 }
 

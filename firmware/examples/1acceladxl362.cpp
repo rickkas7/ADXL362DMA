@@ -4,12 +4,12 @@
 #include "Particle.h"
 
 // Accerometer sensor file. I only implemented the parts that I needed so the library is not complete.
-#include "ADXL362DMA/ADXL362.h"
+#include "ADXL362DMA/ADXL362DMA.h"
 
 //
 SYSTEM_THREAD(ENABLED);
 
-// Number of 256 byte buffers to allocate. The more buffers, the longer network hiccup can be accomodated for.
+// Number of 256 byte buffers to allocate. The more 3buffers, the longer network hiccup can be accomodated for.
 const size_t NUM_BUFFERS = 128;
 
 // Finite state machine states
@@ -29,7 +29,7 @@ const unsigned long sendTimeoutMs = 60000;
 // CS: A2 (SS)
 // INT1: no connection
 // INT1: no connection
-ADXL362 accel(SPI, A2);
+ADXL362DMA accel(SPI, A2);
 
 unsigned long lastCheck = 0;
 size_t fillBuffer = 0;
