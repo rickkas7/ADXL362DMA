@@ -1,6 +1,6 @@
 {
     "name": "ADXL362DMA",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "author": "Rick Kaseguma <rickkas7@rickk.com>",
     "license": "MIT",
     "description": "ADXL362 accelerometer driver with SPI DMA support"
