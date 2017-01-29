@@ -4,7 +4,7 @@
 #include "Particle.h"
 
 // Accerometer sensor file. I only implemented the parts that I needed so the library is not complete.
-#include "ADXL362DMA/ADXL362DMA.h"
+#include "ADXL362DMA.h"
 
 //
 SYSTEM_THREAD(ENABLED);

@@ -1,6 +1,6 @@
 #include "Particle.h"
 
-#include "ADXL362DMA/ADXL362DMA.h"
+#include "ADXL362DMA.h"
 
 // Library for the ADXL362 that uses SPI DMI for efficient data transfers
 // https://github.com/rickkas7/ADXL362DMA
