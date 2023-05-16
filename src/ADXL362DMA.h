@@ -44,8 +44,10 @@ public:
 	 * 
 	 * You can have generally have multiple devices on a single SPI bus, but each SPI device must
 	 * have its own CS (chip select) pin. 
+	 * 
+	 * SPI speed can be from 1 MHz to 8 MHz.
 	 */
-	ADXL362DMA(SPIClass &spi, int cs = A2, SPISettings settings = SPISettings(8*MHZ, MSBFIRST, SPI_MODE0));
+	ADXL362DMA(SPIClass &spi, int cs = A2, SPISettings settings = SPISettings(4*MHZ, MSBFIRST, SPI_MODE0));
 
 	/**
 	 * @brief Normally this object is created as a global variable and never deleted
@@ -97,7 +99,7 @@ public:
 	 * 
 	 * If you are continuously reading samples, using the FIFO is more efficient
 	 */
-	void readXYZT(int &x, int &y, int &z, int &t);
+	void readXYZT(int16_t &x, int16_t &y, int16_t &z, int16_t &t);
 
 	/**
 	 * @brief Read a single XYZ sample from the current data register
@@ -108,7 +110,7 @@ public:
 	 * 
 	 * If you are continuously reading samples, using the FIFO is more efficient
 	 */
-	void readXYZ(int &x, int &y, int &z);
+	void readXYZ(int16_t &x, int16_t &y, int16_t &z);
 
 	/**
 	 * @brief Reads the status register STATUS
@@ -600,7 +602,6 @@ private:
 	void endTransaction();
 
 	static void readFifoCallbackInternal(void);
-	static void syncCallback(void);
 
 	SPIClass &spi; //!< SPI interface, typically SPI or SPI1
 	int cs;		//!<  CS chip select pin. Default: A2

@@ -98,7 +98,7 @@ void ADXL362DMA::setMeasureMode(bool enabled) {
 
 }
 
-void ADXL362DMA::readXYZT(int &x, int &y, int &z, int &t) {
+void ADXL362DMA::readXYZT(int16_t &x, int16_t &y, int16_t &z, int16_t &t) {
 	uint8_t req[10], resp[10];
 
 	req[0] = CMD_READ_REGISTER;
@@ -109,13 +109,13 @@ void ADXL362DMA::readXYZT(int &x, int &y, int &z, int &t) {
 
 	syncTransaction(req, resp, sizeof(req));
 
-	x = resp[2] | (((int)resp[3]) << 8);
-	y = resp[4] | (((int)resp[5]) << 8);
-	z = resp[6] | (((int)resp[7]) << 8);
-	t = resp[8] | (((int)resp[9]) << 8);
+	x = resp[2] | (((int16_t)resp[3]) << 8);
+	y = resp[4] | (((int16_t)resp[5]) << 8);
+	z = resp[6] | (((int16_t)resp[7]) << 8);
+	t = resp[8] | (((int16_t)resp[9]) << 8);
 }
 
-void ADXL362DMA::readXYZ(int &x, int &y, int &z) {
+void ADXL362DMA::readXYZ(int16_t &x, int16_t &y, int16_t &z) {
 	uint8_t req[8], resp[8];
 
 	req[0] = CMD_READ_REGISTER;
@@ -126,9 +126,9 @@ void ADXL362DMA::readXYZ(int &x, int &y, int &z) {
 
 	syncTransaction(req, resp, sizeof(req));
 
-	x = resp[2] | (((int)resp[3]) << 8);
-	y = resp[4] | (((int)resp[5]) << 8);
-	z = resp[6] | (((int)resp[7]) << 8);
+	x = resp[2] | (((int16_t)resp[3]) << 8);
+	y = resp[4] | (((int16_t)resp[5]) << 8);
+	z = resp[6] | (((int16_t)resp[7]) << 8);
 
 }
 
@@ -408,51 +408,14 @@ void ADXL362DMA::endTransaction() {
 }
 
 void ADXL362DMA::syncTransaction(void *req, void *resp, size_t len) {
-#if PLATFORM_THREADING
-	syncCallbackMutex.lock();
-
 	beginTransaction();
 
-	spi.transfer(req, resp, len, syncCallback);
-	syncCallbackMutex.lock();
+	spi.transfer(req, resp, len, nullptr);
 
 	endTransaction();
-
-	syncCallbackMutex.unlock();
-#else
-	syncCallbackDone = false;
-	beginTransaction();
-
-	spi.transfer(req, resp, len, syncCallback);
-
-	while(!syncCallbackDone) {
-	}
-
-	endTransaction();
-#endif
 }
 
-// [static]
-void ADXL362DMA::syncCallback(void) {
-#if PLATFORM_THREADING
-	syncCallbackMutex.unlock();
-#else
-	syncCallbackDone = true;
-#endif
-}
-/*
-union Value16 {
-	int16_t value;
-	uint8_t bytes[2];
-};
 
-int ADXL362DataBase::readSigned16(const uint8_t *pValue) const {
-	Value16 v;
-	v.bytes[0] = pValue[0];
-	v.bytes[1] = pValue[1];
-	return (int) v.value;
-}
-*/
 
 /*
 It is recommended that an even number of bytes be read (using a multibyte transaction) because each sample consists of two bytes: 2 bits of axis information and 14 bits of data. If an odd number of bytes is read, it is assumed that the desired data was read; therefore, the second half of the last sample is discarded so a read from the FIFO always starts on a properly aligned even- byte boundary. Data is presented least significant byte first, followed by the most significant byte.

@@ -24,7 +24,7 @@ ADXL362DMA accel(SPI, A2);
 
 // Global variables
 unsigned long lastReport = 0;
-const unsigned long lastReportPeriod = 100;
+const unsigned long lastReportPeriod = 200;
 
 void setup() {
     waitFor(Serial.isConnected, 10000);
@@ -35,11 +35,6 @@ void setup() {
 		delay(1000);
 	}
 
-	// Program the accelerometer to gather samples automatically and store them in its
-	// internal FIFO.
-	accel.writeFifoControlAndSamples(511, false, accel.FIFO_STREAM);
-
-    accel.setSampleRate(ADXL362DMA::SampleRate::RATE_3_125_HZ);
 	accel.setMeasureMode(true);
 }
 
@@ -48,10 +43,10 @@ void loop() {
     if (millis() - lastReport >= lastReportPeriod) {
         lastReport = millis();
 
-        int x, y, z, t;
+        int16_t x, y, z;
 
-        accel.readXYZT(x, y, z, t);
+        accel.readXYZ(x, y, z);
 
-        Serial.printlnf("%5d %5d %5d %3d", x, y, z, t);
+        Serial.printlnf("%5d %5d %5d", (int)x, (int)y, (int)z);
     }
 }
