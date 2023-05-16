@@ -24,7 +24,7 @@ ADXL362DMA accel(SPI, A2);
 
 // Global variables
 unsigned long lastReport = 0;
-const unsigned long lastReportPeriod = 200;
+const unsigned long lastReportPeriod = 100;
 
 void setup() {
     waitFor(Serial.isConnected, 10000);

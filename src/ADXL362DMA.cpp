@@ -142,28 +142,25 @@ uint16_t ADXL362DMA::readNumFifoEntries() {
 }
 
 void ADXL362DMA::readFifoAsync(ADXL362DataBase *data) {
-	if (busy) {
-		return;
-	}
-
 	readFifoData = data;
 	readFifoObject = this;
 
-	size_t entrySetSize = data->entrySize = getEntrySetSize();
+	data->sampleSizeInBytes = getSampleSizeInBytes();
 
-	size_t maxFullEntries = data->bufSize / entrySetSize;
 
-	size_t numEntries = (size_t) readNumFifoEntries();
-	if (numEntries == 0) {
+	data->numSamplesRead = readNumFifoEntries() / (data->sampleSizeInBytes / 2);
+
+	if (data->numSamplesRead < 1) {
 		// Leave buffer in free state
 		return;
 	}
 
-	if (numEntries > maxFullEntries) {
-		numEntries = maxFullEntries;
+	size_t maxFullSamples = data->bufSize / data->sampleSizeInBytes;
+	if (data->numSamplesRead > maxFullSamples) {
+		data->numSamplesRead = maxFullSamples;
 	}
-	data->numSamplesRead = numEntries;
-	data->bytesRead = numEntries * entrySetSize;
+
+	data->bytesRead = data->numSamplesRead * data->sampleSizeInBytes;
 	data->state = STATE_READING_FIFO;
 	data->storeTemp = storeTemp;
 
@@ -397,13 +394,11 @@ void ADXL362DMA::writeRegister16(uint8_t addr, uint16_t value) {
 
 void ADXL362DMA::beginTransaction() {
 	spi.beginTransaction(settings);
-	busy = true;
 	digitalWrite(cs, LOW);
 }
 
 void ADXL362DMA::endTransaction() {
 	digitalWrite(cs, HIGH);
-	busy = false;
 	spi.endTransaction();
 }
 
@@ -428,9 +423,8 @@ void ADXL362DataBase::cleanBuffer() {
 			break;
 		}
 	}
-	startOffset = 0;
-
-	numSamplesRead = (bytesRead - startOffset) / entrySize;
+	
+	numSamplesRead = (bytesRead - startOffset) / sampleSizeInBytes;
 }
 
 
@@ -445,18 +439,18 @@ int16_t ADXL362DataBase::readSigned14(const uint8_t *pValue) const {
 }
 
 int16_t ADXL362DataBase::readX(size_t index) const {
-	return readSigned14(&buf[startOffset + entrySize * index]);
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index]);
 }
 
 int16_t ADXL362DataBase::readY(size_t index) const {
-	return readSigned14(&buf[startOffset + entrySize * index + 2]);
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index + 2]);
 }
 
 int16_t ADXL362DataBase::readZ(size_t index) const {
-	return readSigned14(&buf[startOffset + entrySize * index + 4]);
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index + 4]);
 }
 
 int16_t ADXL362DataBase::readT(size_t index) const {
-	return readSigned14(&buf[startOffset + entrySize * index + 6]);
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index + 6]);
 }
 

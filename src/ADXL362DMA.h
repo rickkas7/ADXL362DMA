@@ -138,9 +138,7 @@ public:
 	 * 
 	 * @return Number of FIFO entries available (uint16_t)
 	 *
-	 * Use readFifoAsync to read the bytes. Note: Because this accesses the chip using SPI, you should
-	 * check that the chips is not busy using getIsBusy() before calling this if you're mixing calls
-	 * to this and readFifoAsync() in your loop().
+	 * Use readFifoAsync to read the bytes.
 	 */
 	uint16_t readNumFifoEntries();
 
@@ -467,12 +465,8 @@ public:
 	/**
 	 * @brief Returns the number of bytes for a full XYZ or XYZT FIFO entry depending on the storeTemp flag
 	 */
-	size_t getEntrySetSize() const { return storeTemp ? 8 : 6; };
+	size_t getSampleSizeInBytes() const { return storeTemp ? 8 : 6; };
 
-	/**
-	 * @brief Returns true if a SPI command is currently being handled
-	 */
-	bool getIsBusy() const { return busy; };
 
 	/**
 	 * @brief Begin a synchronous SPI DMI transaction
@@ -607,7 +601,6 @@ private:
 	int cs;		//!<  CS chip select pin. Default: A2
 	SPISettings settings; //!<  SPI settings (mode, bit order, speed)
 	bool storeTemp = false; //!< Whether to store temperature 
-	bool busy = false; //!< Used for busy detection 
 };
 
 
@@ -659,7 +652,7 @@ public:
 	 */
 	size_t bytesRead = 0;
 
-	size_t entrySize = 0;
+	size_t sampleSizeInBytes = 0;
 
 	size_t numSamplesRead = 0;
 
