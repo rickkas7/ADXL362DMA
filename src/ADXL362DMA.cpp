@@ -16,7 +16,7 @@ static Mutex syncCallbackMutex;
 static volatile bool syncCallbackDone;
 #endif
 
-static ADXL362Data *readFifoData;
+static ADXL362DataBase *readFifoData;
 static ADXL362DMA *readFifoObject;
 
 // These methods are described in greater detail in the .h file
@@ -31,7 +31,7 @@ ADXL362DMA::~ADXL362DMA() {
 
 void ADXL362DMA::softReset() {
 
-	// Serial.println("softReset");
+	// Log.info("softReset");
 	writeRegister8(REG_SOFT_RESET, 'R');
 }
 
@@ -42,7 +42,9 @@ bool ADXL362DMA::chipDetect() {
 void ADXL362DMA::setSampleRate(SampleRate rate) {
 	uint8_t filterCtl = readFilterControl();
 
-	filterCtl &= ~(HALF_BW_MASK | ODR_MASK);
+
+	filterCtl &= ~ODR_MASK;
+	filterCtl |= HALF_BW_MASK; // Actually means 1/4 bandwidth, the default
 
 	switch(rate) {
 		case SampleRate::RATE_3_125_HZ :
@@ -66,7 +68,8 @@ void ADXL362DMA::setSampleRate(SampleRate rate) {
 			break;
 
 		case SampleRate::RATE_200_HZ :
-			filterCtl |= ODR_400 | HALF_BW_MASK;
+			filterCtl |= ODR_400;
+			filterCtl &= ~HALF_BW_MASK; // Clearing the bit sets it to 1/2
 			break;
 
 		default:
@@ -74,6 +77,7 @@ void ADXL362DMA::setSampleRate(SampleRate rate) {
 			filterCtl |= ODR_400;
 			break;
 	}
+	Log.info("setSampleRate 0x%02x", filterCtl);
 
 	writeFilterControl(filterCtl);
 }
@@ -90,7 +94,7 @@ void ADXL362DMA::setMeasureMode(bool enabled) {
 	writeRegister8(REG_POWER_CTL, value);
 
 	//value = readRegister8(REG_POWER_CTL);
-	//Serial.printlnf("setMeasureMode check=%02d", value);
+	//Log.info("setMeasureMode check=%02d", value);
 
 }
 
@@ -111,6 +115,24 @@ void ADXL362DMA::readXYZT(int &x, int &y, int &z, int &t) {
 	t = resp[8] | (((int)resp[9]) << 8);
 }
 
+void ADXL362DMA::readXYZ(int &x, int &y, int &z) {
+	uint8_t req[8], resp[8];
+
+	req[0] = CMD_READ_REGISTER;
+	req[1] = REG_XDATA_L;
+	for(size_t ii = 2; ii < sizeof(req); ii++) {
+		req[ii] = 0;
+	}
+
+	syncTransaction(req, resp, sizeof(req));
+
+	x = resp[2] | (((int)resp[3]) << 8);
+	y = resp[4] | (((int)resp[5]) << 8);
+	z = resp[6] | (((int)resp[7]) << 8);
+
+}
+
+
 uint8_t ADXL362DMA::readStatus() {
 	return readRegister8(REG_STATUS);
 }
@@ -119,7 +141,7 @@ uint16_t ADXL362DMA::readNumFifoEntries() {
 	return readRegister16(REG_FIFO_ENTRIES_L);
 }
 
-void ADXL362DMA::readFifoAsync(ADXL362Data *data) {
+void ADXL362DMA::readFifoAsync(ADXL362DataBase *data) {
 	if (busy) {
 		return;
 	}
@@ -127,18 +149,23 @@ void ADXL362DMA::readFifoAsync(ADXL362Data *data) {
 	readFifoData = data;
 	readFifoObject = this;
 
-	size_t entrySetSize = getEntrySetSize();
+	size_t entrySetSize = data->entrySize = getEntrySetSize();
 
 	size_t maxFullEntries = data->bufSize / entrySetSize;
 
-	size_t numEntries = ((size_t) readNumFifoEntries() * 2) / entrySetSize;
+	size_t numEntries = (size_t) readNumFifoEntries();
+	if (numEntries == 0) {
+		// Leave buffer in free state
+		return;
+	}
+
 	if (numEntries > maxFullEntries) {
 		numEntries = maxFullEntries;
 	}
+	data->numSamplesRead = numEntries;
 	data->bytesRead = numEntries * entrySetSize;
-	data->state = ADXL362Data::STATE_READING_FIFO;
+	data->state = STATE_READING_FIFO;
 	data->storeTemp = storeTemp;
-
 
 	beginTransaction();
 
@@ -150,7 +177,8 @@ void ADXL362DMA::readFifoAsync(ADXL362Data *data) {
 // [static]
 void ADXL362DMA::readFifoCallbackInternal(void) {
 	readFifoObject->endTransaction();
-	readFifoData->state = ADXL362Data::STATE_READ_COMPLETE;
+	readFifoData->cleanBuffer();
+	readFifoData->state = STATE_READ_COMPLETE;
 }
 
 void ADXL362DMA::writeActivityThreshold(uint16_t value) { // value is an 11-bit integer
@@ -412,7 +440,60 @@ void ADXL362DMA::syncCallback(void) {
 	syncCallbackDone = true;
 #endif
 }
+/*
+union Value16 {
+	int16_t value;
+	uint8_t bytes[2];
+};
+
+int ADXL362DataBase::readSigned16(const uint8_t *pValue) const {
+	Value16 v;
+	v.bytes[0] = pValue[0];
+	v.bytes[1] = pValue[1];
+	return (int) v.value;
+}
+*/
+
+/*
+It is recommended that an even number of bytes be read (using a multibyte transaction) because each sample consists of two bytes: 2 bits of axis information and 14 bits of data. If an odd number of bytes is read, it is assumed that the desired data was read; therefore, the second half of the last sample is discarded so a read from the FIFO always starts on a properly aligned even- byte boundary. Data is presented least significant byte first, followed by the most significant byte.
+*/
+
+void ADXL362DataBase::cleanBuffer() {
+	for(startOffset = 0; startOffset < bytesRead; startOffset += 2) {
+		uint8_t dataType = (buf[startOffset] >> 6) & 0x3;
+		if (dataType == 0x0) { // x-axis
+			break;
+		}
+	}
+	startOffset = 0;
+
+	numSamplesRead = (bytesRead - startOffset) / entrySize;
+}
 
 
+int16_t ADXL362DataBase::readSigned14(const uint8_t *pValue) const {
+	uint8_t msb = pValue[0] & 0x3f;
+	if (msb & 0x20) {
+		// Add in sign extension
+		msb |= 0xc0;
+	}
 
+	return ((int16_t) pValue[1] | (msb << 8));
+}
+
+int16_t ADXL362DataBase::readX(size_t index) const {
+	return readSigned14(&buf[startOffset + entrySize * index]);
+}
+
+int16_t ADXL362DataBase::readY(size_t index) const {
+	return readSigned14(&buf[startOffset + entrySize * index + 2]);
+}
+
+int16_t ADXL362DataBase::readZ(size_t index) const {
+	return readSigned14(&buf[startOffset + entrySize * index + 4]);
+}
+
+int16_t ADXL362DataBase::readT(size_t index) const {
+	return readSigned14(&buf[startOffset + entrySize * index + 6]);
+}
 

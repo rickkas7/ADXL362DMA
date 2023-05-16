@@ -3,19 +3,15 @@
 
 #include "Particle.h"
 
-// Accerometer sensor file. I only implemented the parts that I needed so the library is not complete.
+// Accelerometer sensor file. I only implemented the parts that I needed so the library is not complete.
 #include "ADXL362DMA.h"
 
 //
 SYSTEM_THREAD(ENABLED);
+SerialLogHandler logHandler;
 
-// Number of 256 byte buffers to allocate. The more 3buffers, the longer network hiccup can be accomodated for.
-#if PLATFORM_ID > 3
+// Number of 256 byte buffers to allocate. The more buffers, the longer network hiccup can be accommodated for.
 const size_t NUM_BUFFERS = 128;
-#else
-// Core doesn't have enough RAM for 128 buffers
-const size_t NUM_BUFFERS = 64;
-#endif
 
 // Finite state machine states
 enum State { STATE_CONNECT, STATE_CHECK_BUFFER, STATE_SEND, STATE_RETRY_WAIT };
@@ -52,12 +48,11 @@ unsigned long stateTime = 0;
 size_t totalSent;
 
 void setup() {
-	Serial.begin(9600);
 
 	accel.softReset();
 
 	while(accel.readStatus() == 0) {
-		Serial.println("no status yet, waiting for device");
+		Log.info("no status yet, waiting for device");
 		delay(1000);
 	}
 
@@ -79,9 +74,9 @@ void loop() {
 		uint16_t numEntries = accel.readNumFifoEntries();
 		ADXL362Data *data = &dataBuffers[fillBuffer % NUM_BUFFERS];
 		if (numEntries >= (data->bufSize / 2)) {
-			Serial.printlnf("numEntries=%d fillBuffer=%d sendBuffer=%d state=%d", (int)numEntries, (int)fillBuffer, (int)sendBuffer, data->state);
+			Log.info("numEntries=%d fillBuffer=%d sendBuffer=%d state=%d", (int)numEntries, (int)fillBuffer, (int)sendBuffer, data->state);
 			if ((fillBuffer - sendBuffer) == NUM_BUFFERS) {
-				Serial.printlnf("send buffer full, discarding old samples sendBuffer=%d", sendBuffer);
+				Log.info("send buffer full, discarding old samples sendBuffer=%d", sendBuffer);
 				ADXL362Data *dataSend = &dataBuffers[sendBuffer % NUM_BUFFERS];
 				dataSend->state = ADXL362Data::STATE_FREE;
 				sendBuffer++;
@@ -94,7 +89,7 @@ void loop() {
 	// Networking state machine
 	switch(state) {
 	case STATE_CONNECT:
-		Serial.printlnf("** trying connection millis=%lu", millis());
+		Log.info("** trying connection millis=%lu", millis());
 
 		if (!client.connect(serverAddr, serverPort)) {
 			// Connection failed
@@ -126,7 +121,7 @@ void loop() {
 				// that in real code, but for this test I ignore it. I've never seen it happen on the
 				// Photon or Electron.
 				if ((size_t)count < data->bytesRead) {
-					Serial.printlnf("error: sent %d expected %d", count, data->bytesRead);
+					Log.info("error: sent %d expected %d", count, data->bytesRead);
 				}
 
 				stateTime = millis();
@@ -138,14 +133,14 @@ void loop() {
 			}
 			else {
 				// Error
-				Serial.printlnf("** error sending error=%d totalSent=%lu millis=%lu", count, totalSent, millis());
+				Log.info("** error sending error=%d totalSent=%lu millis=%lu", count, totalSent, millis());
 				client.stop();
 				stateTime = millis();
 				state = STATE_RETRY_WAIT;
 			}
 		}
 		else {
-			Serial.printlnf("** connection closed totalSent=%lu millis=%lu", totalSent, millis());
+			Log.info("** connection closed totalSent=%lu millis=%lu", totalSent, millis());
 			client.stop();
 			stateTime = millis();
 			state = STATE_RETRY_WAIT;

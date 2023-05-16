@@ -15,7 +15,7 @@
 // INT2: depends on usage
 // INT1: depends on usage
 
-class ADXL362Data; // forward declaration
+class ADXL362DataBase; // Forward declaration
 
 /**
  * @brief Class for ADXL362 accelerometer, connected by SPI
@@ -80,6 +80,9 @@ public:
 	 *
 	 * @param enable true to enable measure mode or false to disable measure mode
 	 * 
+	 * When the chip is powered on, it default to standby mode. In order to begin sampling,
+	 * measurement mode needs to be enabled.
+	 * 
 	 * This a convenience method that's easier than directly manipulating the POWER_CTL register.
 	 */
 	void setMeasureMode(bool enabled = true);
@@ -95,6 +98,17 @@ public:
 	 * If you are continuously reading samples, using the FIFO is more efficient
 	 */
 	void readXYZT(int &x, int &y, int &z, int &t);
+
+	/**
+	 * @brief Read a single XYZ sample from the current data register
+	 *
+	 * @param x Filled in with the x acceleration value
+	 * @param y Filled in with the y acceleration value
+	 * @param z Filled in with the z acceleration value
+	 * 
+	 * If you are continuously reading samples, using the FIFO is more efficient
+	 */
+	void readXYZ(int &x, int &y, int &z);
 
 	/**
 	 * @brief Reads the status register STATUS
@@ -132,7 +146,7 @@ public:
 	 * @brief Reads entries from the FIFO asynchronously using SPI DMA
 	 * 
 	 */
-	void readFifoAsync(ADXL362Data *data);
+	void readFifoAsync(ADXL362DataBase *data);
 
 	/**
 	 * @brief Write the activity threshold register
@@ -451,12 +465,12 @@ public:
 	/**
 	 * @brief Returns the number of bytes for a full XYZ or XYZT FIFO entry depending on the storeTemp flag
 	 */
-	size_t getEntrySetSize() { return storeTemp ? 8 : 6; };
+	size_t getEntrySetSize() const { return storeTemp ? 8 : 6; };
 
 	/**
 	 * @brief Returns true if a SPI command is currently being handled
 	 */
-	bool getIsBusy() { return busy; };
+	bool getIsBusy() const { return busy; };
 
 	/**
 	 * @brief Begin a synchronous SPI DMI transaction
@@ -531,8 +545,8 @@ public:
 	static const uint8_t RANGE_4G 	= 0x1;				//!< Range +/- 4g
 	static const uint8_t RANGE_8G 	= 0x2;				//!< Range +/- 8g
 
-	static const uint8_t HALF_BW_MASK = 0x80;			//!< Mask value for HALF_BW bit in FILTER_CTL register
-	static const uint8_t ODR_MASK = 0x80;				//!< Mask value for ODR bits in FILTER_CTL register
+	static const uint8_t HALF_BW_MASK = 0x10;			//!< Mask value for HALF_BW bit in FILTER_CTL register
+	static const uint8_t ODR_MASK = 0x07;				//!< Mask value for ODR bits in FILTER_CTL register
 
 	// Output Data Rate in Filter Control Register
 	static const uint8_t ODR_12_5 	= 0x0;				//!< Output data rate 12.5 Hz
@@ -570,6 +584,9 @@ public:
 	static const uint8_t MEASURE_STANDBY = 0x0;			//!< Standby mode
 	static const uint8_t MEASURE_MEASUREMENT = 0x2;		//!< Measurement mode
 
+	static const int STATE_FREE = 0;			//!< ADXL362DataEx Not currently in use
+	static const int STATE_READING_FIFO = 1;	//!< ADXL362DataEx Reading FIFO by SPI DMA
+	static const int STATE_READ_COMPLETE = 2;	//!< ADXL362DataEx Reading complete
 
 private:
 	/**
@@ -592,6 +609,70 @@ private:
 	bool busy = false; //!< Used for busy detection 
 };
 
+
+class ADXL362DataBase {
+public:
+	/**
+	 * @brief Constructor
+	 */
+	ADXL362DataBase(uint8_t *buf, size_t bufSize) : buf(buf), bufSize(bufSize) {};
+
+	/**
+	 * @brief Destructor
+	 */
+	virtual ~ADXL362DataBase() {};
+
+	/**
+	 * @brief Removes partial samples from the beginning or of the buffer
+	 */
+	void cleanBuffer();
+
+	int16_t readX(size_t index) const;
+	int16_t readY(size_t index) const;
+	int16_t readZ(size_t index) const;
+	int16_t readT(size_t index) const;
+
+	int16_t readSigned14(const uint8_t *pValue) const;
+
+	/**
+	 * @brief Buffer size. Should be a multiple of the entry size
+	 * 
+	 * The getEntrySize() method will return either 6 (without temperature) or 8 (with temperature)
+	 */
+	uint8_t *buf;
+
+	/**
+	 * @brief Whether to store temperature or not
+	 * 
+	 * false=XYZ (6 bytes per sample), true=XYZT (includes temperature, 8 bytes per sample)
+	 */
+	bool storeTemp = false;
+
+	/**
+	 * @brief State of this object (free, reading, or complete)
+	 */
+	int state = ADXL362DMA::STATE_FREE;
+
+	/**
+	 * @brief Number of bytes (not samples!) read on completion
+	 */
+	size_t bytesRead = 0;
+
+	size_t entrySize = 0;
+
+	size_t numSamplesRead = 0;
+
+	size_t startOffset = 0;
+
+	/**
+	 * @brief Size of buf
+	 * 
+	 */
+	size_t bufSize = 0;
+
+};
+
+
 /**
  * @brief Class used to store data from the FIFO
  * 
@@ -602,51 +683,20 @@ private:
  * Since this class is used for asynchronous reads, 
  */
 template <size_t BUF_SIZE> 
-class ADXL362DataEx {
+class ADXL362DataEx : public ADXL362DataBase {
 public:
-	static const int STATE_FREE = 0;			//!< Not currently in use
-	static const int STATE_READING_FIFO = 1;	//!< Reading FIFO by SPI DMA
-	static const int STATE_READ_COMPLETE = 2;	//!< Reading complete
-
 	/**
 	 * @brief Constructor
 	 */
-	ADXL362DataEx() : bufSize(BUF_SIZE) {};
-
-	/**
-	 * @brief Destructor
-	 */
-	virtual ~ADXL362DataEx() {};
+	ADXL362DataEx() : ADXL362DataBase(staticBuf, BUF_SIZE) {};
 
 	/**
 	 * @brief Buffer size. Should be a multiple of the entry size
 	 * 
 	 * The getEntrySize() method will return either 6 (without temperature) or 8 (with temperature)
 	 */
-	uint8_t buf[BUF_SIZE];
+	uint8_t staticBuf[BUF_SIZE];
 
-	/**
-	 * @brief Whether to store temperature or not
-	 * 
-	 * false=XYZ (6 bytes per sample), true=XYZT (includes temperature, 8 bytes per sample)
-	 */
-	bool storeTemp;
-
-	/**
-	 * @brief State of this object (free, reading, or complete)
-	 */
-	int state = STATE_FREE;
-
-	/**
-	 * @brief Number of bytes (not samples!) read on completion
-	 */
-	size_t bytesRead = 0;
-
-	/**
-	 * @brief Size of buf
-	 * 
-	 */
-	size_t bufSize;
 
 };
 
