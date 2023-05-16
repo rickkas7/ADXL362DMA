@@ -22,6 +22,16 @@ class ADXL362Data; // forward declaration
  */
 class ADXL362DMA {
 public:
+	enum class SampleRate {
+		RATE_3_125_HZ,	//!< 3.125 samples per second (quarter oversampling)
+		RATE_6_25_HZ,	//!< 6.25 samples per second (quarter oversampling)
+		RATE_12_5_HZ,	//!< 12.5 samples per second (quarter oversampling)
+		RATE_25_HZ,		//!< 25 samples per second (quarter oversampling)
+		RATE_50_HZ,		//!< 50 samples per second (quarter oversampling)
+		RATE_100_HZ,	//!< 100 samples per second (quarter oversampling)
+		RATE_200_HZ,	//!< 200 samples per second (half oversampling)
+	};
+
 	/**
 	 * @brief Initialize the ADXL362 handler object. 
 	 * 
@@ -49,6 +59,21 @@ public:
 	 * a softReset. readStatus() will return non-zero when ready.
 	 */
 	void softReset();
+
+	/**
+	 * @brief Returns true if the chip can be detected on the SPI bus
+	 * 
+	 * @return true 
+	 * @return false 
+	 */
+	bool chipDetect();
+
+	/**
+	 * @brief Set the sample rate
+	 * 
+	 * @param rate See SampleRate. Ranges from 3.125 Hz to 200 Hz.
+	 */
+	void setSampleRate(SampleRate rate);
 
 	/**
 	 * @brief Enable or disable measure mode in the power control register
@@ -438,6 +463,7 @@ public:
 	 */
 	void syncTransaction(void *req, void *resp, size_t len);
 
+
 	// Command bytes
 	static const uint8_t CMD_WRITE_REGISTER = 0x0a; 	//!< Write register command
 	static const uint8_t CMD_READ_REGISTER = 0x0b; 		//!< Read register command
@@ -505,6 +531,8 @@ public:
 	static const uint8_t RANGE_4G 	= 0x1;				//!< Range +/- 4g
 	static const uint8_t RANGE_8G 	= 0x2;				//!< Range +/- 8g
 
+	static const uint8_t HALF_BW_MASK = 0x80;			//!< Mask value for HALF_BW bit in FILTER_CTL register
+	static const uint8_t ODR_MASK = 0x80;				//!< Mask value for ODR bits in FILTER_CTL register
 
 	// Output Data Rate in Filter Control Register
 	static const uint8_t ODR_12_5 	= 0x0;				//!< Output data rate 12.5 Hz

@@ -35,6 +35,49 @@ void ADXL362DMA::softReset() {
 	writeRegister8(REG_SOFT_RESET, 'R');
 }
 
+bool ADXL362DMA::chipDetect() {
+	return readRegister8(REG_DEVID_AD) == 0xAD && readRegister8(REG_DEVID_MST) == 0x1D;
+}
+
+void ADXL362DMA::setSampleRate(SampleRate rate) {
+	uint8_t filterCtl = readFilterControl();
+
+	filterCtl &= ~(HALF_BW_MASK | ODR_MASK);
+
+	switch(rate) {
+		case SampleRate::RATE_3_125_HZ :
+			filterCtl |= ODR_12_5;
+			break;
+
+		case SampleRate::RATE_6_25_HZ :
+			filterCtl |= ODR_25;
+			break;
+
+		case SampleRate::RATE_12_5_HZ :
+			filterCtl |= ODR_50;
+			break;
+			
+		case SampleRate::RATE_25_HZ :
+			filterCtl |= ODR_100;
+			break;
+
+		case SampleRate::RATE_50_HZ :
+			filterCtl |= ODR_200;
+			break;
+
+		case SampleRate::RATE_200_HZ :
+			filterCtl |= ODR_400 | HALF_BW_MASK;
+			break;
+
+		default:
+		case SampleRate::RATE_100_HZ :
+			filterCtl |= ODR_400;
+			break;
+	}
+
+	writeFilterControl(filterCtl);
+}
+
 void ADXL362DMA::setMeasureMode(bool enabled) {
 
 	uint8_t value = readRegister8(REG_POWER_CTL);
