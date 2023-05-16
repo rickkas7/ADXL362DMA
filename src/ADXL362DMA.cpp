@@ -21,16 +21,9 @@ static ADXL362DMA *readFifoObject;
 
 // These methods are described in greater detail in the .h file
 
-ADXL362DMA::ADXL362DMA(SPIClass &spi, int ss) : spi(spi), ss(ss) {
-	spi.begin(ss);
 
-	// This initialization possibly should go in beginTransaction() for compatibility with SPI
-	// bus sharing in different modes, but it seems to require an indeterminate delay to take
-	// effect, otherwise the operations fail. Since SPI bus sharing across modes tends not to
-	// work with other devices, anyway, I put the code here.
-	spi.setBitOrder(MSBFIRST);
-	spi.setClockSpeed(8, MHZ);
-	spi.setDataMode(SPI_MODE0); // CPHA = 0, CPOL = 0 : MODE = 0
+ADXL362DMA::ADXL362DMA(SPIClass &spi, int cs, SPISettings settings) : spi(spi), cs(cs), settings(settings) {
+	spi.begin(cs);
 }
 
 ADXL362DMA::~ADXL362DMA() {
@@ -93,7 +86,7 @@ void ADXL362DMA::readFifoAsync(ADXL362Data *data) {
 
 	size_t entrySetSize = getEntrySetSize();
 
-	size_t maxFullEntries = ADXL362Data::BUF_SIZE / entrySetSize;
+	size_t maxFullEntries = data->bufSize / entrySetSize;
 
 	size_t numEntries = ((size_t) readNumFifoEntries() * 2) / entrySetSize;
 	if (numEntries > maxFullEntries) {
@@ -332,14 +325,15 @@ void ADXL362DMA::writeRegister16(uint8_t addr, uint16_t value) {
 
 
 void ADXL362DMA::beginTransaction() {
-	// See note in the constructor for ADXL362DMA
+	spi.beginTransaction(settings);
 	busy = true;
-	digitalWrite(ss, LOW);
+	digitalWrite(cs, LOW);
 }
 
 void ADXL362DMA::endTransaction() {
-	digitalWrite(ss, HIGH);
+	digitalWrite(cs, HIGH);
 	busy = false;
+	spi.endTransaction();
 }
 
 void ADXL362DMA::syncTransaction(void *req, void *resp, size_t len) {
@@ -374,12 +368,6 @@ void ADXL362DMA::syncCallback(void) {
 #else
 	syncCallbackDone = true;
 #endif
-}
-
-ADXL362Data::ADXL362Data() {
-}
-
-ADXL362Data::~ADXL362Data() {
 }
 
 

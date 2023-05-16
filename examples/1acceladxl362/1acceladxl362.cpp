@@ -42,7 +42,7 @@ size_t sendBuffer = 0;
 ADXL362Data dataBuffers[NUM_BUFFERS];
 
 // Set to the IP address of the server to connect to
-IPAddress serverAddr(192,168,2,4);
+IPAddress serverAddr(192,168,2,6);
 const int serverPort = 7123;
 
 // Global variables
@@ -77,9 +77,9 @@ void loop() {
 
 		// numEntries is the number of 16-byte values, not the number of bytes!
 		uint16_t numEntries = accel.readNumFifoEntries();
-		if (numEntries >= (ADXL362Data::BUF_SIZE / 2)) {
-			ADXL362Data *data = &dataBuffers[fillBuffer % NUM_BUFFERS];
-			Serial.printlnf("numEntries=%d fillBuffer=%d sendBuffer=%d state=%d", numEntries, fillBuffer, sendBuffer, data->state);
+		ADXL362Data *data = &dataBuffers[fillBuffer % NUM_BUFFERS];
+		if (numEntries >= (data->bufSize / 2)) {
+			Serial.printlnf("numEntries=%d fillBuffer=%d sendBuffer=%d state=%d", (int)numEntries, (int)fillBuffer, (int)sendBuffer, data->state);
 			if ((fillBuffer - sendBuffer) == NUM_BUFFERS) {
 				Serial.printlnf("send buffer full, discarding old samples sendBuffer=%d", sendBuffer);
 				ADXL362Data *dataSend = &dataBuffers[sendBuffer % NUM_BUFFERS];
