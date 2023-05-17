@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['readactivitycontrol_0',['readActivityControl',['../class_a_d_x_l362_d_m_a.html#adee4a68cc2dda738a3f5d0f880285f37',1,'ADXL362DMA']]],
+  ['readfifoasync_1',['readFifoAsync',['../class_a_d_x_l362_d_m_a.html#a6fdfa611437a49c08f3a8c6d45c6005a',1,'ADXL362DMA']]],
+  ['readfifocontrol_2',['readFifoControl',['../class_a_d_x_l362_d_m_a.html#a4af1aa8ccf2bdab589a1398a32947dc8',1,'ADXL362DMA']]],
+  ['readfiltercontrol_3',['readFilterControl',['../class_a_d_x_l362_d_m_a.html#ab1452ed8704593b870caf4d527b7c560',1,'ADXL362DMA']]],
+  ['readintmap1_4',['readIntmap1',['../class_a_d_x_l362_d_m_a.html#a25a7d5eed5c9b959f4f912b6843ba937',1,'ADXL362DMA']]],
+  ['readintmap2_5',['readIntmap2',['../class_a_d_x_l362_d_m_a.html#a8374cbee774ed5745ace6e7e6bc882e6',1,'ADXL362DMA']]],
+  ['readnumfifoentries_6',['readNumFifoEntries',['../class_a_d_x_l362_d_m_a.html#abfd359d9ae81b38fd376854b1bfbf86f',1,'ADXL362DMA']]],
+  ['readpowerctl_7',['readPowerCtl',['../class_a_d_x_l362_d_m_a.html#a6de10c3a2154ca30b38718a4df052ffc',1,'ADXL362DMA']]],
+  ['readregister16_8',['readRegister16',['../class_a_d_x_l362_d_m_a.html#a84486828f73fe063011dbbe645cf3f50',1,'ADXL362DMA']]],
+  ['readregister8_9',['readRegister8',['../class_a_d_x_l362_d_m_a.html#afb9bd621fbf60cab4a4a4a035eb78146',1,'ADXL362DMA']]],
+  ['readrollpitchdegrees_10',['readRollPitchDegrees',['../class_a_d_x_l362_d_m_a.html#affe8d8877ed5b7dc9c60886e8a15940d',1,'ADXL362DMA']]],
+  ['readrollpitchradians_11',['readRollPitchRadians',['../class_a_d_x_l362_d_m_a.html#a9493d68c303e0e5d9cfe0b6f7b86ae26',1,'ADXL362DMA']]],
+  ['readsigned14_12',['readSigned14',['../class_a_d_x_l362_data_base.html#a1db3b0b5ce0128eec6139e6f681ce4b3',1,'ADXL362DataBase']]],
+  ['readstatus_13',['readStatus',['../class_a_d_x_l362_d_m_a.html#a9505bf92630ce259d57d31bd70d882c9',1,'ADXL362DMA']]],
+  ['readt_14',['readT',['../class_a_d_x_l362_data_base.html#a4ca8103999e2795a13edd475e72bce4b',1,'ADXL362DataBase']]],
+  ['readtemperaturec_15',['readTemperatureC',['../class_a_d_x_l362_d_m_a.html#af0187e7e2406ab17e0d85f5af121e58d',1,'ADXL362DMA']]],
+  ['readtemperaturef_16',['readTemperatureF',['../class_a_d_x_l362_d_m_a.html#afcb3ddd39ccfc8aca211cfbb1b16b2b1',1,'ADXL362DMA']]],
+  ['readx_17',['readX',['../class_a_d_x_l362_data_base.html#af79bddb871c0bc729c20c60104a92302',1,'ADXL362DataBase']]],
+  ['readxyz_18',['readXYZ',['../class_a_d_x_l362_d_m_a.html#a07e5f7e2dc622db3c6e8b99cb7603058',1,'ADXL362DMA']]],
+  ['readxyzt_19',['readXYZT',['../class_a_d_x_l362_d_m_a.html#a676aa18f6cd6193baaa6a3b3d9544f5d',1,'ADXL362DMA']]],
+  ['ready_20',['readY',['../class_a_d_x_l362_data_base.html#a23d13f6a78c78c740ce9fca6c2504037',1,'ADXL362DataBase']]],
+  ['readz_21',['readZ',['../class_a_d_x_l362_data_base.html#aa08b7528ae44ef2ca7314dd404740df8',1,'ADXL362DataBase']]]
+];

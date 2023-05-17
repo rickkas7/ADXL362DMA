@@ -2,6 +2,9 @@
 
 #include "ADXL362DMA.h"
 
+#include <math.h>
+#include <cmath>
+
 // Library for the ADXL362 that uses SPI DMI for efficient data transfers
 // https://github.com/rickkas7/ADXL362DMA
 
@@ -16,21 +19,14 @@ static Mutex syncCallbackMutex;
 static volatile bool syncCallbackDone;
 #endif
 
-static ADXL362Data *readFifoData;
+static ADXL362DataBase *readFifoData;
 static ADXL362DMA *readFifoObject;
 
 // These methods are described in greater detail in the .h file
 
-ADXL362DMA::ADXL362DMA(SPIClass &spi, int ss) : spi(spi), ss(ss) {
-	spi.begin(ss);
 
-	// This initialization possibly should go in beginTransaction() for compatibility with SPI
-	// bus sharing in different modes, but it seems to require an indeterminate delay to take
-	// effect, otherwise the operations fail. Since SPI bus sharing across modes tends not to
-	// work with other devices, anyway, I put the code here.
-	spi.setBitOrder(MSBFIRST);
-	spi.setClockSpeed(8, MHZ);
-	spi.setDataMode(SPI_MODE0); // CPHA = 0, CPOL = 0 : MODE = 0
+ADXL362DMA::ADXL362DMA(SPIClass &spi, int cs, SPISettings settings) : spi(spi), cs(cs), settings(settings) {
+	spi.begin(cs);
 }
 
 ADXL362DMA::~ADXL362DMA() {
@@ -38,8 +34,55 @@ ADXL362DMA::~ADXL362DMA() {
 
 void ADXL362DMA::softReset() {
 
-	// Serial.println("softReset");
+	// Log.info("softReset");
 	writeRegister8(REG_SOFT_RESET, 'R');
+}
+
+bool ADXL362DMA::chipDetect() {
+	return readRegister8(REG_DEVID_AD) == 0xAD && readRegister8(REG_DEVID_MST) == 0x1D;
+}
+
+void ADXL362DMA::setSampleRate(SampleRate rate) {
+	uint8_t filterCtl = readFilterControl();
+
+
+	filterCtl &= ~ODR_MASK;
+	filterCtl |= HALF_BW_MASK; // Actually means 1/4 bandwidth, the default
+
+	switch(rate) {
+		case SampleRate::RATE_3_125_HZ :
+			filterCtl |= ODR_12_5;
+			break;
+
+		case SampleRate::RATE_6_25_HZ :
+			filterCtl |= ODR_25;
+			break;
+
+		case SampleRate::RATE_12_5_HZ :
+			filterCtl |= ODR_50;
+			break;
+			
+		case SampleRate::RATE_25_HZ :
+			filterCtl |= ODR_100;
+			break;
+
+		case SampleRate::RATE_50_HZ :
+			filterCtl |= ODR_200;
+			break;
+
+		case SampleRate::RATE_200_HZ :
+			filterCtl |= ODR_400;
+			filterCtl &= ~HALF_BW_MASK; // Clearing the bit sets it to 1/2
+			break;
+
+		default:
+		case SampleRate::RATE_100_HZ :
+			filterCtl |= ODR_400;
+			break;
+	}
+	Log.info("setSampleRate 0x%02x", filterCtl);
+
+	writeFilterControl(filterCtl);
 }
 
 void ADXL362DMA::setMeasureMode(bool enabled) {
@@ -54,11 +97,11 @@ void ADXL362DMA::setMeasureMode(bool enabled) {
 	writeRegister8(REG_POWER_CTL, value);
 
 	//value = readRegister8(REG_POWER_CTL);
-	//Serial.printlnf("setMeasureMode check=%02d", value);
+	//Log.info("setMeasureMode check=%02d", value);
 
 }
 
-void ADXL362DMA::readXYZT(int &x, int &y, int &z, int &t) {
+void ADXL362DMA::readXYZT(int16_t &x, int16_t &y, int16_t &z, int16_t &t) {
 	uint8_t req[10], resp[10];
 
 	req[0] = CMD_READ_REGISTER;
@@ -69,11 +112,61 @@ void ADXL362DMA::readXYZT(int &x, int &y, int &z, int &t) {
 
 	syncTransaction(req, resp, sizeof(req));
 
-	x = resp[2] | (((int)resp[3]) << 8);
-	y = resp[4] | (((int)resp[5]) << 8);
-	z = resp[6] | (((int)resp[7]) << 8);
-	t = resp[8] | (((int)resp[9]) << 8);
+	x = resp[2] | (((int16_t)resp[3]) << 8);
+	y = resp[4] | (((int16_t)resp[5]) << 8);
+	z = resp[6] | (((int16_t)resp[7]) << 8);
+	t = resp[8] | (((int16_t)resp[9]) << 8);
 }
+
+void ADXL362DMA::readXYZ(int16_t &x, int16_t &y, int16_t &z) {
+	uint8_t req[8], resp[8];
+
+	req[0] = CMD_READ_REGISTER;
+	req[1] = REG_XDATA_L;
+	for(size_t ii = 2; ii < sizeof(req); ii++) {
+		req[ii] = 0;
+	}
+
+	syncTransaction(req, resp, sizeof(req));
+
+	x = resp[2] | (((int16_t)resp[3]) << 8);
+	y = resp[4] | (((int16_t)resp[5]) << 8);
+	z = resp[6] | (((int16_t)resp[7]) << 8);
+
+}
+
+float ADXL362DMA::readTemperatureC() {
+	return ((float) ((int16_t)readRegister16(REG_TDATA_L))) / 16.0;
+}
+
+float ADXL362DMA::readTemperatureF() {
+	return (readTemperatureC() * 9.0) / 5.0 + 32.0;
+}
+
+void ADXL362DMA::readRollPitchRadians(float &roll, float &pitch) {
+	int16_t x, y, z;
+
+	readXYZ(x, y, z);
+
+	float xg, yg, zg;
+
+	xg = (float)x * (float)rangeG / 2048.0;
+	yg = (float)y * (float)rangeG / 2048.0;
+	zg = (float)z * (float)rangeG / 2048.0;
+
+	pitch = atan(xg / sqrt(pow(yg, 2) + pow(zg, 2)));
+	roll = atan(yg / sqrt(pow(xg, 2) + pow(zg, 2)));
+}
+
+void ADXL362DMA::readRollPitchDegrees(float &roll, float &pitch) {
+	readRollPitchRadians(roll, pitch);
+	
+	float conv = 180.0 / M_PI;
+
+	pitch *= conv;
+	roll *= conv;
+}
+
 
 uint8_t ADXL362DMA::readStatus() {
 	return readRegister8(REG_STATUS);
@@ -83,39 +176,67 @@ uint16_t ADXL362DMA::readNumFifoEntries() {
 	return readRegister16(REG_FIFO_ENTRIES_L);
 }
 
-void ADXL362DMA::readFifoAsync(ADXL362Data *data) {
-	if (busy) {
-		return;
-	}
-
+void ADXL362DMA::readFifoAsync(ADXL362DataBase *data) {
 	readFifoData = data;
 	readFifoObject = this;
 
-	size_t entrySetSize = getEntrySetSize();
+	data->sampleSizeInBytes = getSampleSizeInBytes();
 
-	size_t maxFullEntries = ADXL362Data::BUF_SIZE / entrySetSize;
 
-	size_t numEntries = ((size_t) readNumFifoEntries() * 2) / entrySetSize;
-	if (numEntries > maxFullEntries) {
-		numEntries = maxFullEntries;
+	data->numSamplesRead = readNumFifoEntries() / (data->sampleSizeInBytes / 2);
+
+	if (data->numSamplesRead < 1) {
+		// Leave buffer in free state
+		return;
 	}
-	data->bytesRead = numEntries * entrySetSize;
-	data->state = ADXL362Data::STATE_READING_FIFO;
+
+	size_t maxFullSamples = (data->bufSize - partialSampleBytesCount) / data->sampleSizeInBytes;
+	if (data->numSamplesRead > maxFullSamples) {
+		data->numSamplesRead = maxFullSamples;
+	}
+
+	data->bytesRead = data->numSamplesRead * data->sampleSizeInBytes;
+	data->state = STATE_READING_FIFO;
 	data->storeTemp = storeTemp;
 
+	if (partialSampleBytesCount) {
+		memcpy(data->buf, partialSampleBytes, partialSampleBytesCount);
+	}
 
 	beginTransaction();
 
 	spi.transfer(CMD_READ_FIFO);
 
-	spi.transfer(NULL, data->buf, data->bytesRead, readFifoCallbackInternal);
+	spi.transfer(NULL, &data->buf[partialSampleBytesCount], data->bytesRead, readFifoCallbackInternal);
 }
 
 // [static]
 void ADXL362DMA::readFifoCallbackInternal(void) {
 	readFifoObject->endTransaction();
-	readFifoData->state = ADXL362Data::STATE_READ_COMPLETE;
+	readFifoObject->cleanBuffer(readFifoData);
+	readFifoData->state = STATE_READ_COMPLETE;
 }
+
+void ADXL362DMA::cleanBuffer(ADXL362DataBase *data) {
+	data->bytesRead += partialSampleBytesCount;
+	partialSampleBytesCount = 0;
+
+	for(data->startOffset = 0; data->startOffset < data->bytesRead; data->startOffset += 2) {
+		uint8_t dataType = (data->buf[data->startOffset] >> 6) & 0x3;
+		if (dataType == 0x0) { // x-axis
+			break;
+		}
+	}
+
+	data->numSamplesRead = (data->bytesRead - data->startOffset) / data->sampleSizeInBytes;
+
+	partialSampleBytesCount = data->bytesRead - data->numSamplesRead * data->sampleSizeInBytes;
+	if (partialSampleBytesCount > 0) {
+		memcpy(partialSampleBytes, &data->buf[data->bytesRead - partialSampleBytesCount], partialSampleBytesCount);
+	}
+
+}
+
 
 void ADXL362DMA::writeActivityThreshold(uint16_t value) { // value is an 11-bit integer
 	writeRegister16(REG_THRESH_ACT_L, value);
@@ -268,6 +389,21 @@ void ADXL362DMA::writeFilterControl(uint8_t range, bool halfBW, bool extSample, 
 
 	value |= (range & 0x3) << 6;
 
+	switch(range) {
+		case RANGE_4G:
+			rangeG = 4;
+			break;
+
+		case RANGE_8G:
+			rangeG = 8;
+			break;
+
+		default:
+		case RANGE_2G:
+			rangeG = 2;
+			break;
+	}
+
 	if (halfBW) {
 		value |= 0x10;
 	}
@@ -332,56 +468,54 @@ void ADXL362DMA::writeRegister16(uint8_t addr, uint16_t value) {
 
 
 void ADXL362DMA::beginTransaction() {
-	// See note in the constructor for ADXL362DMA
-	busy = true;
-	digitalWrite(ss, LOW);
+	spi.beginTransaction(settings);
+	digitalWrite(cs, LOW);
 }
 
 void ADXL362DMA::endTransaction() {
-	digitalWrite(ss, HIGH);
-	busy = false;
+	digitalWrite(cs, HIGH);
+	spi.endTransaction();
 }
 
 void ADXL362DMA::syncTransaction(void *req, void *resp, size_t len) {
-#if PLATFORM_THREADING
-	syncCallbackMutex.lock();
-
 	beginTransaction();
 
-	spi.transfer(req, resp, len, syncCallback);
-	syncCallbackMutex.lock();
+	spi.transfer(req, resp, len, nullptr);
 
 	endTransaction();
+}
 
-	syncCallbackMutex.unlock();
-#else
-	syncCallbackDone = false;
-	beginTransaction();
 
-	spi.transfer(req, resp, len, syncCallback);
 
-	while(!syncCallbackDone) {
+/*
+It is recommended that an even number of bytes be read (using a multibyte transaction) because each sample consists of two bytes: 2 bits of axis information and 14 bits of data. If an odd number of bytes is read, it is assumed that the desired data was read; therefore, the second half of the last sample is discarded so a read from the FIFO always starts on a properly aligned even- byte boundary. Data is presented least significant byte first, followed by the most significant byte.
+*/
+
+
+
+int16_t ADXL362DataBase::readSigned14(const uint8_t *pValue) const {
+	uint8_t msb = pValue[0] & 0x3f;
+	if (msb & 0x20) {
+		// Add in sign extension
+		msb |= 0xc0;
 	}
 
-	endTransaction();
-#endif
+	return ((int16_t) pValue[1] | (msb << 8));
 }
 
-// [static]
-void ADXL362DMA::syncCallback(void) {
-#if PLATFORM_THREADING
-	syncCallbackMutex.unlock();
-#else
-	syncCallbackDone = true;
-#endif
+int16_t ADXL362DataBase::readX(size_t index) const {
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index]);
 }
 
-ADXL362Data::ADXL362Data() {
+int16_t ADXL362DataBase::readY(size_t index) const {
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index + 2]);
 }
 
-ADXL362Data::~ADXL362Data() {
+int16_t ADXL362DataBase::readZ(size_t index) const {
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index + 4]);
 }
 
-
-
+int16_t ADXL362DataBase::readT(size_t index) const {
+	return readSigned14(&buf[startOffset + sampleSizeInBytes * index + 6]);
+}
 
