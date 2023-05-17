@@ -66,7 +66,7 @@ void loop() {
 
     case ADXL362DMA::STATE_READ_COMPLETE:
         // Print output
-        Log.info("bytesRead=%d numSamples=%d startOffset=%d", (int)dataBuffer.bytesRead, dataBuffer.numSamplesRead, dataBuffer.startOffset);
+        //Log.info("bytesRead=%d numSamples=%d startOffset=%d", (int)dataBuffer.bytesRead, dataBuffer.numSamplesRead, dataBuffer.startOffset);
         for(size_t ii = 0; ii < dataBuffer.numSamplesRead; ii++) {
             Serial.printlnf("%5d %5d %5d", (int)dataBuffer.readX(ii), (int)dataBuffer.readY(ii), (int)dataBuffer.readZ(ii) );
         }

@@ -26,9 +26,6 @@ ADXL362DMA accel(SPI, A2);
 unsigned long lastReport = 0;
 const unsigned long lastReportPeriod = 100;
 
-unsigned long temperatureReport = 0;
-const unsigned long temperatureReportPeriod = 30000;
-
 
 void setup() {
     waitFor(Serial.isConnected, 10000);
@@ -48,15 +45,11 @@ void loop() {
     if (millis() - lastReport >= lastReportPeriod) {
         lastReport = millis();
 
-        int16_t x, y, z;
+        float roll, pitch;
 
-        accel.readXYZ(x, y, z);
+        accel.readRollPitchDegrees(roll, pitch);
 
-        Serial.printlnf("%5d %5d %5d", (int)x, (int)y, (int)z);
+        Serial.printlnf("%.2f %.2f", roll, pitch);
     }
 
-    if (millis() - temperatureReport >= temperatureReportPeriod) {
-        temperatureReport = millis();
-        Log.info("temperature %.1f C, %.1f F", accel.readTemperatureC(), accel.readTemperatureF());
-    }
 }

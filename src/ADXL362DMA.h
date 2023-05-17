@@ -22,6 +22,11 @@ class ADXL362DataBase; // Forward declaration
  */
 class ADXL362DMA {
 public:
+	/**
+	 * @brief Sample rate constants for setSampleRate
+	 * 
+	 * These are used when using the FIFO
+	 */
 	enum class SampleRate {
 		RATE_3_125_HZ,	//!< 3.125 samples per second (quarter oversampling)
 		RATE_6_25_HZ,	//!< 6.25 samples per second (quarter oversampling)
@@ -37,6 +42,7 @@ public:
 	 * 
 	 * @param spi The SPI interface, could be `SPI` or `SPI1`
 	 * @param cs The chip select pin to use
+	 * @param settings (optional) SPISettings to set the data rate, etc.
 	 * 
 	 * Usually created as  global variable like this:
 	 *
@@ -80,7 +86,7 @@ public:
 	/**
 	 * @brief Enable or disable measure mode in the power control register
 	 *
-	 * @param enable true to enable measure mode or false to disable measure mode
+	 * @param enabled true to enable measure mode or false to disable measure mode
 	 * 
 	 * When the chip is powered on, it default to standby mode. In order to begin sampling,
 	 * measurement mode needs to be enabled.
@@ -97,7 +103,6 @@ public:
 	 * @param z Filled in with the z acceleration value
 	 * @param t Filled in with the temperature value
 	 * 
-	 * If you are continuously reading samples, using the FIFO is more efficient
 	 */
 	void readXYZT(int16_t &x, int16_t &y, int16_t &z, int16_t &t);
 
@@ -108,9 +113,48 @@ public:
 	 * @param y Filled in with the y acceleration value
 	 * @param z Filled in with the z acceleration value
 	 * 
-	 * If you are continuously reading samples, using the FIFO is more efficient
 	 */
 	void readXYZ(int16_t &x, int16_t &y, int16_t &z);
+
+	/**
+	 * @brief Reads the temperature in degrees Celsius 
+	 * 
+	 * @return float 
+	 * 
+	 * The resolution if the sensor is quarter degrees Celsius.
+	 * 
+	 * The temperature may not be available immediately after entering measuring mode.
+	 */
+	float readTemperatureC();
+
+	/**
+	 * @brief Reads the temperature in degrees Fahrenheit
+	 * 
+	 * @return float 
+	 * 
+	 * The temperature may not be available immediately after entering measuring mode.
+	 */
+	float readTemperatureF();
+
+	/**
+	 * @brief Return the roll and pitch in radians
+	 * 
+	 * @param roll 
+	 * @param pitch 
+	 * 
+	 * The ADXL362 cannot return yaw data (rotation while lying flat) because it doesn't have a gyroscope.
+	 */
+	void readRollPitchRadians(float &roll, float &pitch);
+
+	/**
+	 * @brief Return the roll and pitch in degrees
+	 * 
+	 * @param roll 
+	 * @param pitch 
+	 * 
+	 * The ADXL362 cannot return yaw data (rotation while lying flat) because it doesn't have a gyroscope.
+	 */
+	void readRollPitchDegrees(float &roll, float &pitch);
 
 	/**
 	 * @brief Reads the status register STATUS
@@ -145,6 +189,7 @@ public:
 	/**
 	 * @brief Reads entries from the FIFO asynchronously using SPI DMA
 	 * 
+	 * Warning: This API appears to be returning incorrect data. Use the readXYZ() instead.
 	 */
 	void readFifoAsync(ADXL362DataBase *data);
 
@@ -404,7 +449,10 @@ public:
 	/**
 	 * @brief Writes the power control register
 	 * 
+	 * @param extClock true to use an external clock
 	 * @param lowNoise one of LOWNOISE_NORMAL, LOWNOISE_LOW, LOWNOISE_ULTRALOW
+	 * @param wakeup true to use wakeup mode
+	 * @param autosleep true to use autosleep mode
 	 * @param measureMode: one of MEASURE_STANDBY, MEASURE_MEASUREMENT
 	 * 
 	 * Address: 0x2D, Reset: 0x00, Name: POWER_CTL
@@ -433,14 +481,14 @@ public:
 	 *
 	 * Most of the calls have easier to use accessors like readStatus() that use this call internally.
 	 *
-	 * addr: One of the register addresses, such as REG_STATUS
+	 * @param addr One of the register addresses, such as REG_STATUS
 	 */
 	uint8_t readRegister8(uint8_t addr);
 
 	/**
 	 * @brief Reads an 16-bit register value
 	 *
-	 * addr: One of the register addresses, such as REG_THRESH_ACT_L. It must be the first of a pair of _L and _H registers.
+	 * @param addr One of the register addresses, such as REG_THRESH_ACT_L. It must be the first of a pair of _L and _H registers.
 	 */
 	uint16_t readRegister16(uint8_t addr);
 
@@ -450,6 +498,8 @@ public:
 	 * Most of the calls have easier to use accessors like writeIntmap1() that use this call internally.
 	 *
 	 * @param addr One of the register addresses, such as REG_INTMAP1
+	 * 
+	 * @param value The register value to set
 	 */
 	void writeRegister8(uint8_t addr, uint8_t value);
 
@@ -459,6 +509,8 @@ public:
 	 * Most of the calls have easier to use accessors like writeIntmap1() that use this call internally.
 	 *
 	 * @param addr One of the register addresses, such as REG_THRESH_ACT_L. It must be the first of a pair of _L and _H registers.
+	 * 
+	 * @param value The register value to set
 	 */
 	void writeRegister16(uint8_t addr, uint16_t value);
 
@@ -501,7 +553,7 @@ public:
 	static const uint8_t REG_SOFT_RESET = 0x1f;			//!< Soft reset register
 	static const uint8_t REG_THRESH_ACT_L = 0x20;		//!< Activity threshold (LSB)
 	static const uint8_t REG_THRESH_ACT_H = 0x21;		//!< Activity threshold (MSB)
-	static const uint8_t REG_TIME_ACT = 0x22;			///!< Activity time register
+	static const uint8_t REG_TIME_ACT = 0x22;			//!< Activity time register
 	static const uint8_t REG_THRESH_INACT_L = 0x23;		//!< Inactivity threshold (LSB)
 	static const uint8_t REG_THRESH_INACT_H = 0x24;		//!< Inactivity threshold (MSB)
 	static const uint8_t REG_TIME_INACT_L = 0x25;		//!< Time inactivity register (LSB)
@@ -597,17 +649,29 @@ private:
 
 	static void readFifoCallbackInternal(void);
 
+	void cleanBuffer(ADXL362DataBase *data);
+
 	SPIClass &spi; //!< SPI interface, typically SPI or SPI1
 	int cs;		//!<  CS chip select pin. Default: A2
 	SPISettings settings; //!<  SPI settings (mode, bit order, speed)
 	bool storeTemp = false; //!< Whether to store temperature 
+	uint8_t rangeG = 2;
+	uint8_t partialSampleBytes[8]; //!< Samples if DMA buffer gets out of alignment
+	size_t  partialSampleBytesCount = 0;
 };
 
 
+/**
+ * @brief Base class for ADXL362Data and ADXL362DataEx
+ * 
+ */
 class ADXL362DataBase {
 public:
 	/**
-	 * @brief Constructor
+	 * @brief Constructor - You will not allocate one of these directly
+	 * 
+	 * @param buf The buffer to store the data
+	 * @param bufSize The size of the byffer in bytes
 	 */
 	ADXL362DataBase(uint8_t *buf, size_t bufSize) : buf(buf), bufSize(bufSize) {};
 
@@ -617,15 +681,48 @@ public:
 	virtual ~ADXL362DataBase() {};
 
 	/**
-	 * @brief Removes partial samples from the beginning or of the buffer
+	 * @brief Read an x value out of the buffer
+	 * 
+	 * @param index The index to read from 0 = first instead
+	 * 
+	 * @return int16_t 
 	 */
-	void cleanBuffer();
-
 	int16_t readX(size_t index) const;
+
+	/**
+	 * @brief Read an y value out of the buffer
+	 * 
+	 * @param index The index to read from 0 = first instead
+	 * 
+	 * @return int16_t 
+	 */
 	int16_t readY(size_t index) const;
+
+	/**
+	 * @brief Read an z value out of the buffer
+	 * 
+	 * @param index The index to read from 0 = first instead
+	 * 
+	 * @return int16_t 
+	 */
 	int16_t readZ(size_t index) const;
+
+	/**
+	 * @brief Read a temperature value out of the buffer (if stored)
+	 * 
+	 * @param index The index to read from 0 = first instead
+	 * 
+	 * @return int16_t 
+	 */
 	int16_t readT(size_t index) const;
 
+	/**
+	 * @brief Read an signed 14-bit value out of the buffer
+	 * 
+	 * @param pValue The pointer to the first of two bytes from the FIFO 
+	 * 
+	 * @return int16_t 
+	 */
 	int16_t readSigned14(const uint8_t *pValue) const;
 
 	/**
@@ -652,15 +749,23 @@ public:
 	 */
 	size_t bytesRead = 0;
 
+	/**
+	 * @brief Sample size, either 6 or 8 bytes depending on storeTemp
+	 */
 	size_t sampleSizeInBytes = 0;
 
+	/**
+	 * @brief Number of samples in the buffer 
+	 */
 	size_t numSamplesRead = 0;
 
+	/**
+	 * @brief When the FIFO is out of sync with the beginning of the X sample, this is the offset
+	 */
 	size_t startOffset = 0;
 
 	/**
-	 * @brief Size of buf
-	 * 
+	 * @brief Size of buf in bytes
 	 */
 	size_t bufSize = 0;
 

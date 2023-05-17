@@ -2,6 +2,9 @@
 
 #include "ADXL362DMA.h"
 
+#include <math.h>
+#include <cmath>
+
 // Library for the ADXL362 that uses SPI DMI for efficient data transfers
 // https://github.com/rickkas7/ADXL362DMA
 
@@ -132,6 +135,38 @@ void ADXL362DMA::readXYZ(int16_t &x, int16_t &y, int16_t &z) {
 
 }
 
+float ADXL362DMA::readTemperatureC() {
+	return ((float) ((int16_t)readRegister16(REG_TDATA_L))) / 16.0;
+}
+
+float ADXL362DMA::readTemperatureF() {
+	return (readTemperatureC() * 9.0) / 5.0 + 32.0;
+}
+
+void ADXL362DMA::readRollPitchRadians(float &roll, float &pitch) {
+	int16_t x, y, z;
+
+	readXYZ(x, y, z);
+
+	float xg, yg, zg;
+
+	xg = (float)x * (float)rangeG / 2048.0;
+	yg = (float)y * (float)rangeG / 2048.0;
+	zg = (float)z * (float)rangeG / 2048.0;
+
+	pitch = atan(xg / sqrt(pow(yg, 2) + pow(zg, 2)));
+	roll = atan(yg / sqrt(pow(xg, 2) + pow(zg, 2)));
+}
+
+void ADXL362DMA::readRollPitchDegrees(float &roll, float &pitch) {
+	readRollPitchRadians(roll, pitch);
+	
+	float conv = 180.0 / M_PI;
+
+	pitch *= conv;
+	roll *= conv;
+}
+
 
 uint8_t ADXL362DMA::readStatus() {
 	return readRegister8(REG_STATUS);
@@ -155,7 +190,7 @@ void ADXL362DMA::readFifoAsync(ADXL362DataBase *data) {
 		return;
 	}
 
-	size_t maxFullSamples = data->bufSize / data->sampleSizeInBytes;
+	size_t maxFullSamples = (data->bufSize - partialSampleBytesCount) / data->sampleSizeInBytes;
 	if (data->numSamplesRead > maxFullSamples) {
 		data->numSamplesRead = maxFullSamples;
 	}
@@ -164,19 +199,44 @@ void ADXL362DMA::readFifoAsync(ADXL362DataBase *data) {
 	data->state = STATE_READING_FIFO;
 	data->storeTemp = storeTemp;
 
+	if (partialSampleBytesCount) {
+		memcpy(data->buf, partialSampleBytes, partialSampleBytesCount);
+	}
+
 	beginTransaction();
 
 	spi.transfer(CMD_READ_FIFO);
 
-	spi.transfer(NULL, data->buf, data->bytesRead, readFifoCallbackInternal);
+	spi.transfer(NULL, &data->buf[partialSampleBytesCount], data->bytesRead, readFifoCallbackInternal);
 }
 
 // [static]
 void ADXL362DMA::readFifoCallbackInternal(void) {
 	readFifoObject->endTransaction();
-	readFifoData->cleanBuffer();
+	readFifoObject->cleanBuffer(readFifoData);
 	readFifoData->state = STATE_READ_COMPLETE;
 }
+
+void ADXL362DMA::cleanBuffer(ADXL362DataBase *data) {
+	data->bytesRead += partialSampleBytesCount;
+	partialSampleBytesCount = 0;
+
+	for(data->startOffset = 0; data->startOffset < data->bytesRead; data->startOffset += 2) {
+		uint8_t dataType = (data->buf[data->startOffset] >> 6) & 0x3;
+		if (dataType == 0x0) { // x-axis
+			break;
+		}
+	}
+
+	data->numSamplesRead = (data->bytesRead - data->startOffset) / data->sampleSizeInBytes;
+
+	partialSampleBytesCount = data->bytesRead - data->numSamplesRead * data->sampleSizeInBytes;
+	if (partialSampleBytesCount > 0) {
+		memcpy(partialSampleBytes, &data->buf[data->bytesRead - partialSampleBytesCount], partialSampleBytesCount);
+	}
+
+}
+
 
 void ADXL362DMA::writeActivityThreshold(uint16_t value) { // value is an 11-bit integer
 	writeRegister16(REG_THRESH_ACT_L, value);
@@ -329,6 +389,21 @@ void ADXL362DMA::writeFilterControl(uint8_t range, bool halfBW, bool extSample, 
 
 	value |= (range & 0x3) << 6;
 
+	switch(range) {
+		case RANGE_4G:
+			rangeG = 4;
+			break;
+
+		case RANGE_8G:
+			rangeG = 8;
+			break;
+
+		default:
+		case RANGE_2G:
+			rangeG = 2;
+			break;
+	}
+
 	if (halfBW) {
 		value |= 0x10;
 	}
@@ -416,16 +491,6 @@ void ADXL362DMA::syncTransaction(void *req, void *resp, size_t len) {
 It is recommended that an even number of bytes be read (using a multibyte transaction) because each sample consists of two bytes: 2 bits of axis information and 14 bits of data. If an odd number of bytes is read, it is assumed that the desired data was read; therefore, the second half of the last sample is discarded so a read from the FIFO always starts on a properly aligned even- byte boundary. Data is presented least significant byte first, followed by the most significant byte.
 */
 
-void ADXL362DataBase::cleanBuffer() {
-	for(startOffset = 0; startOffset < bytesRead; startOffset += 2) {
-		uint8_t dataType = (buf[startOffset] >> 6) & 0x3;
-		if (dataType == 0x0) { // x-axis
-			break;
-		}
-	}
-	
-	numSamplesRead = (bytesRead - startOffset) / sampleSizeInBytes;
-}
 
 
 int16_t ADXL362DataBase::readSigned14(const uint8_t *pValue) const {
