@@ -26,7 +26,6 @@ static ADXL362DMA *readFifoObject;
 
 
 ADXL362DMA::ADXL362DMA(SPIClass &spi, int cs, SPISettings settings) : spi(spi), cs(cs), settings(settings) {
-	spi.begin(cs);
 }
 
 ADXL362DMA::~ADXL362DMA() {
@@ -468,6 +467,10 @@ void ADXL362DMA::writeRegister16(uint8_t addr, uint16_t value) {
 
 
 void ADXL362DMA::beginTransaction() {
+	if (!initialized) {
+		initialized = true;
+		spi.begin(cs);
+	}
 	spi.beginTransaction(settings);
 	digitalWrite(cs, LOW);
 }

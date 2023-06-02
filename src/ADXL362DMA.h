@@ -658,6 +658,8 @@ private:
 	uint8_t rangeG = 2;
 	uint8_t partialSampleBytes[8]; //!< Samples if DMA buffer gets out of alignment
 	size_t  partialSampleBytesCount = 0;
+	bool initialized = false; //!< Set to true after SPI initialization has occurred
+
 };
 
 
@@ -724,6 +726,7 @@ public:
 	 * @return int16_t 
 	 */
 	int16_t readSigned14(const uint8_t *pValue) const;
+
 
 	/**
 	 * @brief Buffer size. Should be a multiple of the entry size

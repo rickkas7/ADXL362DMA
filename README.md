@@ -65,3 +65,8 @@ accel.readXYZ(x, y, z);
 Serial.printlnf("%5d %5d %5d", (int)x, (int)y, (int)z);
 ```
 
+## Version history
+
+### 0.0.7 (2023-06-02)
+
+- Fixed occasional SOS+1 hard fault at boot when using the class as a globally constructed object.
