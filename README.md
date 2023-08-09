@@ -32,7 +32,7 @@ This library uses the ADXL362 in SPI mode.
 
 ### Software
 
-Instantiate a global object for the accelerometer. The first parameter is the SPI bus amd the second is the CS line.
+Instantiate a global object for the accelerometer. The first parameter is the SPI bus and the second is the CS line.
 
 ```cpp
 ADXL362DMA accel(SPI, A2);
